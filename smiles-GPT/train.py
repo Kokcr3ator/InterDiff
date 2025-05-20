@@ -29,11 +29,9 @@ from torch.distributed import init_process_group, destroy_process_group
 
 from model import GPTConfig, GPT
 
-# -----------------------------------------------------------------------------
-# default config values designed to train zinc_gpt on a single GPU
-# I/O
+gpt_dir = os.path.dirname(__file__)
+out_dir = os.path.join(gpt_dir, 'zinc_gpt')
 
-out_dir = 'zinc_gpt'
 eval_interval = 250 # keep frequent because we'll overfit
 eval_iters = 200
 log_interval = 10 # don't print too too often
@@ -47,19 +45,19 @@ wandb_run_name = 'zinc_gpt'
 
 dataset = 'zinc'
 gradient_accumulation_steps = 1
-batch_size = 64
+batch_size = 32
 block_size = 128
 
 # baby GPT model :)
-n_layer = 6
-n_head = 6
-n_embd = 384
-dropout = 0.2
+n_layer = 4
+n_head = 4
+n_embd = 288
+dropout = 0.0
 vocab_size = 2048
 
 learning_rate = 1e-3 # with baby networks can afford to go a bit higher
-max_iters = 5000
-lr_decay_iters = 5000 # make equal to max_iters usually
+max_iters = 10000
+lr_decay_iters = 10000 # make equal to max_iters usually
 min_lr = 1e-4 # learning_rate / 10 usually
 beta1 = 0.9
 beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
@@ -70,7 +68,7 @@ always_save_checkpoint = True # if True, always save a checkpoint after each eva
 init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
 
 # wandb logging
-wandb_log = False # disabled by default
+wandb_log = False
 
 # adamw optimizer
 learning_rate = 6e-4 # max learning rate
@@ -81,13 +79,9 @@ decay_lr = True # whether to decay the learning rate
 # DDP settings
 backend = 'nccl' # 'nccl', 'gloo', etc.
 # system
-device = 'cpu' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
+device = 'cuda' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
 dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
 compile = True # use PyTorch 2.0 to compile the model to be faster
-# -----------------------------------------------------------------------------
-config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
-exec(open('configurator.py').read()) # overrides from command line or config file
-config = {k: globals()[k] for k in config_keys} # will be useful for logging
 # -----------------------------------------------------------------------------
 
 # various inits, derived attributes, I/O setup
@@ -126,7 +120,8 @@ ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torc
 ctx = nullcontext() if device_type == 'cpu' else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
 
 # poor man's data loader
-data_dir = os.path.join('data', dataset)
+data_dir = os.path.join(gpt_dir, 'data')
+data_dir = os.path.join(data_dir, dataset)
 def get_batch(split):
     # We recreate np.memmap every batch to avoid a memory leak, as per
     # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
@@ -206,9 +201,6 @@ elif init_from == 'resume':
     iter_num = checkpoint['iter_num']
     best_val_loss = checkpoint['best_val_loss']
 
-if block_size < model.config.block_size:
-    model.crop_block_size(block_size)
-    model_args['block_size'] = block_size # so that the checkpoint will have the right value
 model.to(device)
 
 # initialize a GradScaler. If enabled=False scaler is a no-op
@@ -265,7 +257,7 @@ def get_lr(it):
 # logging
 if wandb_log and master_process:
     import wandb
-    wandb.init(project=wandb_project, name=wandb_run_name, config=config)
+    wandb.init(project=wandb_project, name=wandb_run_name)
 
 # training loop
 X, Y = get_batch('train') # fetch the very first batch
@@ -300,7 +292,6 @@ while True:
                     'model_args': model_args,
                     'iter_num': iter_num,
                     'best_val_loss': best_val_loss,
-                    'config': config,
                 }
                 print(f"saving checkpoint to {out_dir}")
                 torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
