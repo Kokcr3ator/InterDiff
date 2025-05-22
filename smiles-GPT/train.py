@@ -32,9 +32,11 @@ from model import GPTConfig, GPT
 
 gpt_dir = os.path.dirname(__file__)
 out_dir = os.path.join(gpt_dir, "zinc_gpt")
-from config import *
 
-# -----------------------------------------------------------------------------
+
+# ------- CONFIG --------------------------------------------------------------------- #
+from config import *
+# ------------------------------------------------------------------------------------ #
 
 # various inits, derived attributes, I/O setup
 ddp = int(os.environ.get("RANK", -1)) != -1  # is this a ddp run?

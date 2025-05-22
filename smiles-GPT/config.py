@@ -8,13 +8,13 @@ log_interval = 10  # don't print too too often
 # we expect to overfit on this small dataset, so only save when val improves
 always_save_checkpoint = False
 
-wandb_log = False  # override via command line if you like
+wandb_log = True  # override via command line if you like
 wandb_project = "zinc_gpt"
 wandb_run_name = "zinc_gpt"
 
 dataset = "zinc"
 gradient_accumulation_steps = 1
-batch_size = 32
+batch_size = 8192
 block_size = 128
 
 # baby GPT model :)
@@ -25,8 +25,8 @@ dropout = 0.0
 vocab_size = 2048
 
 learning_rate = 1e-3  # with baby networks can afford to go a bit higher
-max_iters = 10000
-lr_decay_iters = 10000  # make equal to max_iters usually
+max_iters = 10_000_000
+lr_decay_iters = 1_000_000  # make equal to max_iters usually
 min_lr = 1e-4  # learning_rate / 10 usually
 beta1 = 0.9
 beta2 = 0.99  # make a bit bigger because number of tokens per iter is small
@@ -36,11 +36,7 @@ eval_only = False  # if True, script exits right after the first eval
 always_save_checkpoint = True  # if True, always save a checkpoint after each eval
 init_from = "scratch"  # 'scratch' or 'resume' or 'gpt2*'
 
-# wandb logging
-wandb_log = False
-
 # adamw optimizer
-learning_rate = 6e-4  # max learning rate
 weight_decay = 1e-1
 grad_clip = 1.0  # clip gradients at this value, or disable if == 0.0
 # learning rate decay settings
